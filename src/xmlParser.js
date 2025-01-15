@@ -1,5 +1,5 @@
 export class xmlParser {
-  getReponse(input) {
+  getResponse(input) {
     let tInput = new TextDecoder().decode(input);
     let lines = tInput.split("<?xml");
     let content = {}

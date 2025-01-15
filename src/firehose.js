@@ -63,7 +63,7 @@ export class Firehose {
       rData = concatUint8Array([rData, tmp]);
     }
 
-    const resp = this.xml.getReponse(rData);
+    const resp = this.xml.getResponse(rData);
     const status = this.getStatus(resp);
     if ("rawmode" in resp) {
       if (resp["rawmode"] === "false") {
@@ -124,7 +124,7 @@ export class Firehose {
 
       const wd = await this.waitForData();
       const info = this.xml.getLog(wd);
-      rsp = this.xml.getReponse(wd);
+      rsp = this.xml.getResponse(wd);
       if ("value" in rsp) {
         if (rsp["value"] !== "ACK") {
           return new response(false, resData, info);
@@ -218,7 +218,7 @@ export class Firehose {
       }
 
       const wd  = await this.waitForData();
-      const response = this.xml.getReponse(wd);
+      const response = this.xml.getResponse(wd);
       if ("value" in response) {
         if (response["value"] !== "ACK") {
           return false;
@@ -251,7 +251,7 @@ export class Firehose {
       }
 
       const res = await this.waitForData();
-      const response = this.xml.getReponse(res);
+      const response = this.xml.getResponse(res);
       if ("value" in response) {
         if (response["value"] !== "ACK") {
           throw "Failed to erase: NAK";
