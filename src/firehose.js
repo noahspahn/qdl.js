@@ -1,6 +1,6 @@
-import { xmlParser } from "./xmlParser"
-import { concatUint8Array, containsBytes, compareStringToBytes, sleep, readBlobAsBuffer } from "./utils"
 import * as Sparse from "./sparse"
+import { concatUint8Array, containsBytes, compareStringToBytes, sleep, readBlobAsBuffer } from "./utils"
+import { xmlParser } from "./xmlParser"
 
 
 class response {

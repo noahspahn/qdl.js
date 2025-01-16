@@ -1,7 +1,7 @@
-import * as gpt from "./gpt"
-import { usbClass } from "./usblib"
-import { Sahara } from  "./sahara"
 import { Firehose } from "./firehose"
+import * as gpt from "./gpt"
+import { Sahara } from  "./sahara"
+import { usbClass } from "./usblib"
 import { concatUint8Array, runWithTimeout, containsBytes } from "./utils"
 
 

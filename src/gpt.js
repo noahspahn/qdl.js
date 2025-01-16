@@ -1,5 +1,6 @@
-import { containsBytes, bytes2Number } from "./utils"
 import { buf as crc32 } from "crc-32"
+
+import { containsBytes, bytes2Number } from "./utils"
 
 export const AB_FLAG_OFFSET = 6;
 export const AB_PARTITION_ATTR_SLOT_ACTIVE = (0x1 << 2);
