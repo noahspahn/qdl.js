@@ -188,9 +188,9 @@ export class qdlDevice {
         const partition = backupGuidGpt.partentries[partitionName];
         const active = (((BigInt(partition.flags) >> (BigInt(gpt.AB_FLAG_OFFSET) * BigInt(8))))
                       & BigInt(gpt.AB_PARTITION_ATTR_SLOT_ACTIVE)) === BigInt(gpt.AB_PARTITION_ATTR_SLOT_ACTIVE);
-        if (slot == "_a" && active) {
+        if (slot === "_a" && active) {
           return "a";
-        } else if (slot == "_b" && active) {
+        } else if (slot === "_b" && active) {
           return "b";
         }
       }
@@ -222,9 +222,9 @@ export class qdlDevice {
     const luns = this.firehose.luns
     let slot_a_status, slot_b_status;
 
-    if (slot == "a") {
+    if (slot === "a") {
       slot_a_status = true;
-    } else if (slot == "b") {
+    } else if (slot === "b") {
       slot_a_status = false;
     }
     slot_b_status = !slot_a_status;

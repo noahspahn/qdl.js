@@ -17,7 +17,7 @@ export class Sahara {
   async connect() {
     const v = await this.cdc?.read(0xC * 0x4);
     if (v.length > 1) {
-      if (v[0] == 0x01) {
+      if (v[0] === 0x01) {
         let pkt = this.ch.pkt_cmd_hdr(v);
         if (pkt.cmd === cmd_t.SAHARA_HELLO_REQ) {
           const rsp = this.ch.pkt_hello_req(v);
@@ -48,7 +48,7 @@ export class Sahara {
     try {
       let data = await this.cdc?.read();
       let data_text = new TextDecoder('utf-8').decode(data.data);
-      if (data.length == 0) {
+      if (data.length === 0) {
         return {};
       } else if (data_text.includes("<?xml")) {
         return {"firehose" : "yes"};
@@ -64,7 +64,7 @@ export class Sahara {
         return {"cmd": pkt.cmd, "data": this.ch.pkt_read_data_64(data)}
       } else if (pkt.cmd === cmd_t.SAHARA_EXECUTE_RSP) {
         return {"cmd": pkt.cmd, "data": this.ch.pkt_execute_rsp_cmd(data)};
-      } else if (pkt.cmd === cmd_t.SAHARA_CMD_READY || pkt.cmd == cmd_t.SAHARA_RESET_RSP) {
+      } else if (pkt.cmd === cmd_t.SAHARA_CMD_READY || pkt.cmd === cmd_t.SAHARA_RESET_RSP) {
         return {"cmd": pkt.cmd, "data": null };
       } else {
         console.error("Didn't match any cmd_t")
@@ -82,12 +82,12 @@ export class Sahara {
     let res = await this.getResponse();
     if ("cmd" in res) {
       let cmd = res["cmd"];
-      if (cmd == cmd_t.SAHARA_EXECUTE_RSP) {
+      if (cmd === cmd_t.SAHARA_EXECUTE_RSP) {
         let pkt = res["data"];
         let data = packGenerator([cmd_t.SAHARA_EXECUTE_DATA, 0xC, mcmd]);
         await this.cdc.write(data);
         return await this.cdc.read(pkt.data_len);
-      } else if (cmd == cmd_t.SAHARA_END_TRANSFER) {
+      } else if (cmd === cmd_t.SAHARA_END_TRANSFER) {
         throw "Sahara - error while executing command";
       }
       return null;
@@ -193,12 +193,12 @@ export class Sahara {
       } else {
         throw "Sahara - Timeout while uploading loader. Wrong loader?";
       }
-      if (cmd == cmd_t.SAHARA_64BIT_MEMORY_READ_DATA) {
+      if (cmd === cmd_t.SAHARA_64BIT_MEMORY_READ_DATA) {
         let pkt = resp["data"];
         this.id = pkt.image_id;
         if (this.id >= 0xC) {
           this.mode = "firehose";
-          if (loop == 0) {
+          if (loop === 0) {
             console.log("Firehose mode detected, uploading...");
           }
         } else {
@@ -215,9 +215,9 @@ export class Sahara {
         let dataToSend = programmer.slice(dataOffset, dataOffset+dataLen);
         await this.cdc?.write(dataToSend);
         datalen -= dataLen;
-      } else if (cmd == cmd_t.SAHARA_END_TRANSFER) {
+      } else if (cmd === cmd_t.SAHARA_END_TRANSFER) {
         let pkt = resp["data"];
-        if (pkt.image_tx_status == status_t.SAHARA_STATUS_SUCCESS) {
+        if (pkt.image_tx_status === status_t.SAHARA_STATUS_SUCCESS) {
           if (await this.cmdDone()) {
             console.log("Loader successfully uploaded");
           } else {
@@ -236,12 +236,12 @@ export class Sahara {
       let res = await this.getResponse();
       if ("cmd" in res) {
         let cmd = res["cmd"];
-        if (cmd == cmd_t.SAHARA_DONE_RSP) {
+        if (cmd === cmd_t.SAHARA_DONE_RSP) {
           return true;
-        } else if (cmd == cmd_t.SAHARA_END_TRANSFER) {
+        } else if (cmd === cmd_t.SAHARA_END_TRANSFER) {
           if ("data" in res) {
             let pkt = res["data"];
-            if (pkt.image_tx_status == status_t.SAHARA_NAK_INVALID_CMD) {
+            if (pkt.image_tx_status === status_t.SAHARA_NAK_INVALID_CMD) {
               console.error("Invalid transfer command received");
               return false;
             }

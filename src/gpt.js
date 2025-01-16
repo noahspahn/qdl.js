@@ -127,7 +127,7 @@ export class gpt {
       return false;
     }
 
-    if (this.header.revision != 0x10000) {
+    if (this.header.revision !== 0x10000) {
       console.error("Unknown GPT revision.");
       return false;
     }
@@ -140,7 +140,7 @@ export class gpt {
     const numPartEntries = this.header.numPartEntries;
     for (let idx = 0; idx < numPartEntries; idx++) {
       const data = gptData.slice(start + (idx * entrySize), start + (idx * entrySize) + entrySize);
-      if (new DataView(data.slice(16,32).buffer, 0).getUint32(0, true) == 0) {
+      if (new DataView(data.slice(16,32).buffer, 0).getUint32(0, true) === 0) {
         break;
       }
 
@@ -172,7 +172,7 @@ export class gpt {
       let nameWithoutNull = partentry.name.slice(0, nullIndex);
       let decodedName = new TextDecoder('utf-16').decode(nameWithoutNull);
       pa.name = decodedName;
-      if (pa.type == "EFI_UNUSED") {
+      if (pa.type === "EFI_UNUSED") {
         continue;
       }
       this.partentries[pa.name] = pa;

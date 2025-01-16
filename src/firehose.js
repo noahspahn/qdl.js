@@ -66,7 +66,7 @@ export class Firehose {
     const resp = this.xml.getReponse(rData);
     const status = this.getStatus(resp);
     if ("rawmode" in resp) {
-      if (resp["rawmode"] == "false") {
+      if (resp["rawmode"] === "false") {
         let log = this.xml.getLog(rData);
         return new response(status, rData, "", log)
       }

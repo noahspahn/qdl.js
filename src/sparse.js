@@ -27,22 +27,22 @@ class QCSparse {
     const dataSize = chunkHeader.dataBytes;
     this.blobOffset += CHUNK_HEADER_SIZE + dataSize;
 
-    if (chunkType == ChunkType.Raw) {
-      if (dataSize != (blocks * this.blockSize)) {
+    if (chunkType === ChunkType.Raw) {
+      if (dataSize !== (blocks * this.blockSize)) {
         throw "Sparse - Chunk input size does not match output size";
       } else {
         return dataSize;
       }
-    } else if (chunkType == ChunkType.Fill) {
-      if (dataSize != 4) {
+    } else if (chunkType === ChunkType.Fill) {
+      if (dataSize !== 4) {
         throw "Sparse - Fill chunk should have 4 bytes";
       } else {
         return blocks * this.blockSize;
       }
-    } else if (chunkType == ChunkType.Skip) {
+    } else if (chunkType === ChunkType.Skip) {
       return blocks * this.blockSize;
-    } else if (chunkType == ChunkType.Crc32) {
-      if (dataSize != 4) {
+    } else if (chunkType === ChunkType.Crc32) {
+      if (dataSize !== 4) {
         throw "Sparse - CRC32 chunk should have 4 bytes";
       } else {
         return 0;
@@ -97,14 +97,14 @@ export async function parseFileHeader(blobHeader) {
   let totalChunks = view.getUint32(20, true);
   let crc32 = view.getUint32(24, true);
 
-  if (magic != FILE_MAGIC) {
+  if (magic !== FILE_MAGIC) {
     return null;
   }
-  if (fileHeadrSize != FILE_HEADER_SIZE) {
+  if (fileHeadrSize !== FILE_HEADER_SIZE) {
     console.error(`The file header size was expected to be 28, but is ${fileHeadrSize}.`);
     return null;
   }
-  if (chunkHeaderSize != CHUNK_HEADER_SIZE) {
+  if (chunkHeaderSize !== CHUNK_HEADER_SIZE) {
     console.error(`The chunk header size was expected to be 12, but is ${chunkHeaderSize}.`);
     return null;
   }
@@ -133,23 +133,23 @@ async function populate(chunks, blockSize) {
     const dataSize = chunk.dataBytes;
     const data = chunk.data;
 
-    if (chunkType == ChunkType.Raw) {
+    if (chunkType === ChunkType.Raw) {
       let rawData = new Uint8Array(await readBlobAsBuffer(data));
       ret.set(rawData, offset);
       offset += blocks * blockSize;
-    } else if (chunkType == ChunkType.Fill) {
+    } else if (chunkType === ChunkType.Fill) {
       const fillBin = new Uint8Array(await readBlobAsBuffer(data));
       const bufferSize = blocks * blockSize;
       for (let i = 0; i < bufferSize; i += dataSize) {
         ret.set(fillBin, offset);
         offset += dataSize;
       }
-    } else if (chunkType == ChunkType.Skip) {
+    } else if (chunkType === ChunkType.Skip) {
       let byteToSend = blocks * blockSize;
       let skipData = new Uint8Array(byteToSend).fill(0);
       ret.set(skipData, offset);
       offset += byteToSend;
-    } else if (chunkType == ChunkType.Crc32) {
+    } else if (chunkType === ChunkType.Crc32) {
       continue;
     } else {
       throw "Sparse - Unknown chunk type";
@@ -205,8 +205,8 @@ export async function* splitBlob(blob, splitSize = 1048576 /* maxPayloadSizeToTa
     let chunksToProcess = [];
     let realBytesToWrite = calcChunksRealDataBytes(originalChunk, header.blockSize)
 
-    const isChunkTypeSkip = originalChunk.type == ChunkType.Skip;
-    const isChunkTypeFill = originalChunk.type == ChunkType.Fill;
+    const isChunkTypeSkip = originalChunk.type === ChunkType.Skip;
+    const isChunkTypeFill = originalChunk.type === ChunkType.Fill;
 
     if (realBytesToWrite > safeToSend) {
       let bytesToWrite = isChunkTypeSkip ? 1 : originalChunk.dataBytes;

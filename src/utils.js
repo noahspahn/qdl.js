@@ -59,7 +59,7 @@ export function containsBytes(subString, array) {
 
 export function compareStringToBytes(compareString, array) {
   let tArray = new TextDecoder().decode(array);
-  return compareString == tArray;
+  return compareString === tArray;
 }
 
 
