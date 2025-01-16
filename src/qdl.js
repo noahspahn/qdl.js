@@ -183,7 +183,7 @@ export class qdlDevice {
       }
       for (const partitionName in guidGpt.partentries) {
         const slot = partitionName.slice(-2);
-        // backup gpt header is more reliable, since it would always has the non-corrupted gpt header
+        // backup gpt header is more reliable, since it should always have the non-corrupted gpt header
         const [backupGuidGpt] = await this.getGpt(lun, guidGpt.header.backupLba);
         const partition = backupGuidGpt.partentries[partitionName];
         const active = (((BigInt(partition.flags) >> (BigInt(gpt.AB_FLAG_OFFSET) * BigInt(8))))
