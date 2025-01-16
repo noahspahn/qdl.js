@@ -6,10 +6,13 @@ import { concatUint8Array, runWithTimeout, containsBytes } from "./utils"
 
 
 export class qdlDevice {
-  constructor() {
+  constructor(options) {
+    if (!options.programmerUrl) {
+      throw "programmerUrl is required";
+    }
     this.mode = "";
     this.cdc = new usbClass();
-    this.sahara = new Sahara(this.cdc);
+    this.sahara = new Sahara(this.cdc, options.programmerUrl);
     this.firehose = new Firehose(this.cdc);
     this._connectResolve = null;
     this._connectReject = null;

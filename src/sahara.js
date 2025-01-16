@@ -1,11 +1,11 @@
 import { CommandHandler, cmd_t, sahara_mode_t, status_t, exec_cmd_t } from "./saharaDefs"
 import { concatUint8Array, packGenerator, readBlobAsBuffer } from "./utils";
-import config from "@/config"
 
 
 export class Sahara {
-  constructor(cdc) {
+  constructor(cdc, programmerUrl) {
     this.cdc = cdc;
+    this.programmerUrl = programmerUrl;
     this.ch = new CommandHandler();
     this.programmer = "6000000000010000_f8ab20526358c4fa_fhprg.bin";
     this.id = null;
@@ -132,8 +132,7 @@ export class Sahara {
       throw `Sahara - ${error}`;
     }
 
-    const programmerUrl = config.loader['url'];
-    const response = await fetch(programmerUrl, { mode: 'cors' })
+    const response = await fetch(this.programmerUrl, { mode: 'cors' })
     if (!response.ok) {
       throw `Sahara - Failed to fetch loader: ${response.status} ${response.statusText}`;
     }
