@@ -1,0 +1,13 @@
+{
+  "name": "@commaai/qdl.js",
+  "version": "0.1.0",
+  "license": "MIT",
+  "module": "src/qdl.js",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "dependencies": {
+    "crc-32": "^1.2.2"
+  }
+}
