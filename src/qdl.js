@@ -144,8 +144,6 @@ export class qdlDevice {
         console.log(`Erasing ${partitionName}...`);
         await this.firehose.cmdErase(lun, partition.sector, partition.sectors);
         console.log(`Erased ${partitionName} starting at sector ${partition.sector} with sectors ${partition.sectors}`);
-      } else {
-        continue;
       }
     }
     return true;
