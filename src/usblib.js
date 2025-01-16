@@ -48,9 +48,12 @@ export class usbClass {
           throw "USB - Interface has multiple OUT endpoints";
         }
       }
-      this.maxSize = this.epIn.packetSize;
     }
     console.log("Endpoints: in =", this.epIn, ", out =", this.epOut);
+
+    if (this.epIn) {
+      this.maxSize = this.epIn.packetSize;
+    }
 
     try {
         await this.device?.open();
