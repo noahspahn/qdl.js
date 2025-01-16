@@ -139,7 +139,7 @@ export class Firehose {
       }
     }
     let resp = rsp["value"] === "ACK";
-    return response(resp, resData, rsp[2]);
+    return new response(resp, resData, rsp[2]);
   }
 
   async waitForData() {
