@@ -56,16 +56,16 @@ export class usbClass {
     }
 
     try {
-        await this.device?.open();
-        await this.device?.selectConfiguration(1);
-        try {
-          await this.device?.claimInterface(0);
-        } catch(error) {
-          await this.device?.reset();
-          await this.device?.forget();
-          await this.device?.close();
-          console.error(error);
-        }
+      await this.device?.open();
+      await this.device?.selectConfiguration(1);
+      try {
+        await this.device?.claimInterface(0);
+      } catch(error) {
+        await this.device?.reset();
+        await this.device?.forget();
+        await this.device?.close();
+        console.error(error);
+      }
     } catch (error) {
       throw `USB - ${error}`;
     }
@@ -111,7 +111,6 @@ export class usbClass {
     }
     return respData;
   }
-
 
   async write(cmdPacket, pktSize=null, wait=true) {
     if (cmdPacket.length === 0) {
