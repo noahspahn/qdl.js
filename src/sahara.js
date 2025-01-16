@@ -86,8 +86,7 @@ export class Sahara {
         let pkt = res["data"];
         let data = packGenerator([cmd_t.SAHARA_EXECUTE_DATA, 0xC, mcmd]);
         await this.cdc.write(data);
-        let payload = await this.cdc.read(pkt.data_len);
-        return payload;
+        return await this.cdc.read(pkt.data_len);
       } else if (cmd == cmd_t.SAHARA_END_TRANSFER) {
         throw "Sahara - error while executing command";
       }

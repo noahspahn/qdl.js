@@ -30,13 +30,11 @@ class structHelper {
   }
 
   bytes(rlen=1) {
-    const dat = this.data.slice(this.pos, this.pos+=rlen);
-    return dat;
+    return this.data.slice(this.pos, this.pos += rlen);
   }
 
   toString(rlen=1) {
-    const dat = this.data.slice(this.pos, this.pos+=rlen);
-    return dat;
+    return this.data.slice(this.pos, this.pos += rlen);
   }
 }
 
