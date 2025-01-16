@@ -234,12 +234,13 @@ export class qdlDevice {
       let sameLun = false;
       let hasPartitionA = false;
       let [guidGptA, gptDataA] = await this.getGpt(lunA);
-      let [backupGuidGptA, backupGptDataA] = await this.getGpt(lunA, guidGptA.header.backupLba);
-      let lunB, gptDataB, guidGptB, backupGptDataB, backupGuidGptB;
-
       if (guidGptA === null) {
         throw "Error while getting gpt header data";
       }
+
+      let [backupGuidGptA, backupGptDataA] = await this.getGpt(lunA, guidGptA.header.backupLba);
+      let lunB, gptDataB, guidGptB, backupGptDataB, backupGuidGptB;
+
       for (const partitionNameA in guidGptA.partentries) {
         let slotSuffix = partitionNameA.toLowerCase().slice(-2);
         if (slotSuffix !== "_a") {
