@@ -7,7 +7,7 @@ export class Sahara {
     this.cdc = cdc;
     this.programmerUrl = programmerUrl;
     this.ch = new CommandHandler();
-    this.programmer = "6000000000010000_f8ab20526358c4fa_fhprg.bin";
+    this.programmer = programmerUrl.substring(programmerUrl.lastIndexOf("/") + 1);
     this.id = null;
     this.serial = "";
     this.mode = "";
