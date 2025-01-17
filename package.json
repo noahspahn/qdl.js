@@ -2,8 +2,11 @@
   "name": "@commaai/qdl",
   "version": "0.1.0",
   "license": "MIT",
-  "module": "src/qdl.js",
   "type": "module",
+  "exports": {
+    ".": "./src/qdl.js",
+    "./utils": "./src/utils.js"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
