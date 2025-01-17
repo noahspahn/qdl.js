@@ -132,7 +132,7 @@ export class usbClass {
       } else {
         // this is a hack, webusb doesn't have timed out catching
         // this only happens in sahara.configure(). The loader receive the packet but doesn't respond back (same as edl repo).
-        this.device?.transferOut(this.epOut?.endpointNumber, cmdPacket.slice(offset, offset + pktSize));
+        void this.device?.transferOut(this.epOut?.endpointNumber, cmdPacket.slice(offset, offset + pktSize));
         await sleep(80);
       }
       offset += pktSize;
