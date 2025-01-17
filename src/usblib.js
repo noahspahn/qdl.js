@@ -1,7 +1,7 @@
 import { concatUint8Array, sleep } from "./utils";
 
-const vendorID = 0x05c6;
-const productID = 0x9008;
+const vendorId = 0x05c6;
+const productId = 0x9008;
 const QDL_USB_CLASS = 0xff;
 const BULK_TRANSFER_SIZE = 16384;
 
@@ -75,9 +75,9 @@ export class usbClass {
     this.device = await navigator.usb.requestDevice({
       filters: [
         {
-          vendorID : vendorID,
-          productID : productID,
-          classCode : QDL_USB_CLASS,
+          vendorId,
+          productId,
+          classCode: QDL_USB_CLASS,
         },
       ],
     });
