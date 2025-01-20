@@ -3,21 +3,41 @@
   "version": "0.1.0",
   "license": "MIT",
   "type": "module",
+  "main": "dist/qdl.js",
+  "types": "dist/qdl.d.ts",
   "exports": {
-    ".": "./src/qdl.js",
-    "./utils": "./src/utils.js"
+    ".": {
+      "types": "./dist/qdl.d.ts",
+      "import": "./dist/qdl.js"
+    },
+    "./utils": {
+      "types": "./dist/utils.d.ts",
+      "import": "./dist/utils.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc",
+    "postinstall": "bun run build"
   },
   "//devDependencies": {
-    "@happy-dom/global-registrator": "happy-dom is used by tests involving browser APIs, like DOMParser"
+    "@happy-dom/global-registrator": "happy-dom is used by tests involving browser APIs, like DOMParser",
+    "@types/w3c-web-usb": "type information for the WebUSB APIs"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^16.6.0",
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/w3c-web-usb": "^1.0.10"
   },
   "//dependencies": {
     "crc-32": "crc32s are used in the gpt header calculations"
   },
   "dependencies": {
     "crc-32": "^1.2.2"
+  },
+  "//peerDependencies": {
+    "typescript": "does type checking, generates JS bundles and type declarations for language servers"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
   }
 }
