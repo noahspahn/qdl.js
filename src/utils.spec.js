@@ -1,7 +1,7 @@
-import { describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 
 import { cmd_t, sahara_mode_t } from "./saharaDefs";
-import { compareStringToBytes, containsBytes, packGenerator, structHelper_io } from "./utils";
+import { bytes2Number, compareStringToBytes, concatUint8Array, containsBytes, packGenerator, readBlobAsBuffer, structHelper_io } from "./utils";
 
 describe("structHelper_io", () => {
   describe("dword", () => {
@@ -222,6 +222,49 @@ describe("packGenerator", () => {
   });
 });
 
+describe("concatUint8Array", () => {
+  describe("valid Uint8Arrays", () => {
+    test("should concatenate all arrays", () => {
+      const array1 = new Uint8Array([0x01, 0x02]);
+      const array2 = new Uint8Array([0x03, 0x04]);
+      const result = concatUint8Array([array1, array2]);
+
+      expect(result).toEqual(new Uint8Array([0x01, 0x02, 0x03, 0x04]));
+      expect(result.length).toEqual(array1.length + array2.length);
+    });
+
+    test("should handle empty arrays", () => {
+      const array1 = new Uint8Array();
+      const array2 = new Uint8Array([0x01]);
+      const result = concatUint8Array([array1, array2]);
+
+      expect(result).toEqual(new Uint8Array([0x01]));
+      expect(result.length).toEqual(array1.length + array2.length);
+    });
+  });
+
+  describe("null values provided", () => {
+    test("should skip null values", () => {
+      const array1 = new Uint8Array([0x01]);
+      const array2 = null;
+      const result = concatUint8Array([array1, array2]);
+
+      expect(result).toEqual(new Uint8Array([0x01]));
+      expect(result.length).toEqual(array1.length);
+    });
+
+    test("should handle multiple nulls", () => {
+      const array1 = new Uint8Array([0x01]);
+      const array2 = null;
+      const array3 = new Uint8Array([0x02]);
+      const result = concatUint8Array([array1, array2, array3]);
+
+      expect(result).toEqual(new Uint8Array([0x01, 0x02]));
+      expect(result.length).toEqual(array1.length + array3.length);
+    });
+  });
+});
+
 describe("containsBytes", () => {
   test("empty string", () => {
     const input = new TextEncoder().encode("");
@@ -261,4 +304,93 @@ describe("compareStringToBytes", () => {
     expect(compareStringToBytes(undefined, input)).toBeFalse();
     expect(compareStringToBytes(null, input)).toBeFalse();
   })
+});
+
+describe("readBlobAsBuffer", () => {
+  let originalFileReader = global.FileReader;
+  beforeEach(() => {
+    global.FileReader = originalFileReader;
+  });
+
+  test("successfully reads blob with known data", async () => {
+    const originalArrayBuffer = new ArrayBuffer(2);
+    const view = new DataView(originalArrayBuffer);
+    view.setUint8(0, 0x12);
+    view.setUint8(1, 0x34);
+
+    const blob = new Blob([originalArrayBuffer]);
+
+    const result = await readBlobAsBuffer(blob);
+    const resultView = new DataView(result);
+
+    expect(resultView.getUint8(0)).toBe(0x12);
+    expect(resultView.getUint8(1)).toBe(0x34);
+  });
+
+  test("handles read errors", async () => {
+    const mockError = new DOMException("Read failed");
+    global.FileReader = class extends FileReader {
+      readAsArrayBuffer(blob) {
+        this.error = mockError;
+        this.onerror?.(null);
+      }
+    };
+
+    const blob = new Blob();
+    await expect(readBlobAsBuffer(blob)).rejects.toBe(mockError);
+  }, { timeout: 50 });
+
+  test("handles empty blobs", async () => {
+    const blob = new Blob();
+
+    const result = await readBlobAsBuffer(blob);
+    expect(result.byteLength).toBe(0);
+  });
+});
+
+describe("bytes2Number", () => {
+  describe("valid byte arrays", () => {
+    test("should convert 4 bytes to a number correctly", () => {
+      const bytes = new Uint8Array([0x12, 0x34, 0x56, 0x78]);
+      expect(bytes2Number(bytes)).toBe(0x78563412);
+    });
+
+    test("should convert 8 bytes to a number correctly", () => {
+      const bytes = new Uint8Array([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0]);
+      expect(bytes2Number(bytes)).toBe(0xF0DEBC9A78563412n);
+    });
+  });
+
+  describe("edge values", () => {
+    test("should handle all zero bytes correctly", () => {
+      const fourBytes = new Uint8Array(4).fill(0);
+      expect(bytes2Number(fourBytes)).toBe(0);
+
+      const eightBytes = new Uint8Array(8).fill(0);
+      expect(bytes2Number(eightBytes)).toBe(0n);
+    });
+
+    test("should handle maximum values", () => {
+      const fourBytesMax = new Uint8Array([0xFF, 0xFF, 0xFF, 0xFF]);
+      expect(bytes2Number(fourBytesMax)).toBe(0xFFFFFFFF);
+
+      const eightBytesMax = new Uint8Array([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+      expect(bytes2Number(eightBytesMax)).toBe(0xFFFFFFFFFFFFFFFFn);
+    });
+  });
+
+  describe("invalid inputs", () => {
+    test("should throw error for empty array", () => {
+      const emptyArray = new Uint8Array();
+      expect(() => bytes2Number(emptyArray)).toThrow("Only convert to 64 and 32 bit Number");
+    });
+
+    test("should throw error for incorrect length", () => {
+      const fiveBytes = new Uint8Array(5);
+      expect(() => bytes2Number(fiveBytes)).toThrow("Only convert to 64 and 32 bit Number");
+
+      const nineBytes = new Uint8Array(9);
+      expect(() => bytes2Number(nineBytes)).toThrow("Only convert to 64 and 32 bit Number");
+    });
+  });
 });
