@@ -188,6 +188,19 @@ export class qdlDevice {
     throw "Can't detect slot A or B";
   }
 
+  /**
+   * @returns {Promise<any>}
+   */
+  async getStorageInfo() {
+    const log = (await this.firehose.cmdGetStorageInfo()).find((log) => log.includes("storage_info"));
+    if (!log) throw new Error("Storage info JSON not returned - not implemented?");
+    try {
+      return JSON.parse(log.substring("INFO: ".length))?.storage_info;
+    } catch (e) {
+      throw new Error("Failed to parse storage info JSON", { cause: e });
+    }
+  }
+
   patchNewGptData(gptDataA, gptDataB, guidGpt, partA, partB, slot_a_status, slot_b_status, isBoot) {
     const partEntrySize = guidGpt.header.partEntrySize;
 
