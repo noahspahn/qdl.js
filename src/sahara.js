@@ -52,7 +52,7 @@ export class Sahara {
   async getResponse() {
     try {
       let data = await this.cdc.read();
-      let data_text = new TextDecoder('utf-8').decode(data.data);
+      let data_text = new TextDecoder('utf-8').decode(data);
       if (data.length === 0) {
         return {};
       } else if (data_text.includes("<?xml")) {
@@ -236,23 +236,22 @@ export class Sahara {
 
   async cmdDone() {
     const toSendData = packGenerator([cmd_t.SAHARA_DONE_REQ, 0x8]);
-    if (await this.cdc.write(toSendData)) {
-      let res = await this.getResponse();
-      if ("cmd" in res) {
-        let cmd = res.cmd;
-        if (cmd === cmd_t.SAHARA_DONE_RSP) {
-          return true;
-        } else if (cmd === cmd_t.SAHARA_END_TRANSFER) {
-          if ("data" in res) {
-            let pkt = res.data;
-            if (pkt.image_tx_status === status_t.SAHARA_NAK_INVALID_CMD) {
-              console.error("Invalid transfer command received");
-              return false;
-            }
+    await this.cdc.write(toSendData);
+    let res = await this.getResponse();
+    if ("cmd" in res) {
+      let cmd = res.cmd;
+      if (cmd === cmd_t.SAHARA_DONE_RSP) {
+        return true;
+      } else if (cmd === cmd_t.SAHARA_END_TRANSFER) {
+        if ("data" in res) {
+          let pkt = res.data;
+          if (pkt.image_tx_status === status_t.SAHARA_NAK_INVALID_CMD) {
+            console.error("Invalid transfer command received");
+            return false;
           }
-        } else {
-          throw "Sahara - Received invalid response";
         }
+      } else {
+        throw "Sahara - Received invalid response";
       }
     }
     return false;

@@ -95,47 +95,52 @@ export class usbClass {
     await this._validateAndConnectDevice();
   }
 
-  async read(resplen=null) {
-    let respData = new Uint8Array();
-    let covered = 0;
-    if (resplen === null) {
-      resplen = this.epIn.packetSize;
+  /**
+   * @param {number|undefined} [length=undefined]
+   * @returns {Promise<Uint8Array<ArrayBuffer>>}
+   */
+  async read(length = undefined) {
+    if (length) {
+      /** @type {Uint8Array<ArrayBuffer>[]} */
+      const chunks = [];
+      let received = 0;
+      do {
+        const chunk = await this.read();
+        if (chunk.byteLength) {
+          chunks.push(chunk);
+          received += chunk.byteLength;
+        }
+      } while (received < length);
+      return concatUint8Array(chunks);
+    } else {
+      const result = await this.device?.transferIn(this.epIn?.endpointNumber, this.maxSize);
+      return new Uint8Array(result.data?.buffer);
     }
-
-    while (covered < resplen) {
-      let respPacket = await this.device?.transferIn(this.epIn?.endpointNumber, resplen);
-      respData = concatUint8Array([respData, new Uint8Array(respPacket.data.buffer)]);
-      resplen = respData.length;
-      covered += respData.length;
-    }
-    return respData;
   }
 
-  async write(cmdPacket, pktSize=null, wait=true) {
-    if (cmdPacket.length === 0) {
+  /**
+   * @param {Uint8Array} data
+   * @param {boolean} [wait=true]
+   * @returns {Promise<void>}
+   */
+  async write(data, wait = true) {
+    if (data.byteLength === 0) {
       try {
-        await this.device?.transferOut(this.epOut?.endpointNumber, cmdPacket);
-      } catch(error) {
-        await this.device?.transferOut(this.epOut?.endpointNumber, cmdPacket);
+        await this.device?.transferOut(this.epOut?.endpointNumber, data);
+      } catch {
+        await this.device?.transferOut(this.epOut?.endpointNumber, data);
       }
-      return true;
+      return;
     }
 
     let offset = 0;
-    if (pktSize === null) {
-      pktSize = BULK_TRANSFER_SIZE;
-    }
-    while (offset < cmdPacket.length) {
-      if (wait) {
-        await this.device?.transferOut(this.epOut?.endpointNumber, cmdPacket.slice(offset, offset + pktSize));
-      } else {
-        // this is a hack, webusb doesn't have timed out catching
-        // this only happens in sahara.configure(). The loader receive the packet but doesn't respond back (same as edl repo).
-        void this.device?.transferOut(this.epOut?.endpointNumber, cmdPacket.slice(offset, offset + pktSize));
-        await sleep(80);
-      }
-      offset += pktSize;
-    }
-    return true;
+    do {
+      const chunk = data.slice(offset, offset + BULK_TRANSFER_SIZE);
+      offset += chunk.byteLength;
+      const promise = this.device?.transferOut(this.epOut?.endpointNumber, chunk);
+      // this is a hack, webusb doesn't have timed out catching
+      // this only happens in sahara.configure(). The loader receive the packet but doesn't respond back (same as edl repo).
+      await (wait ? promise : sleep(80));
+    } while (offset < data.byteLength);
   }
 }
