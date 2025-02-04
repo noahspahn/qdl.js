@@ -1,11 +1,15 @@
 import { Firehose } from "./firehose"
 import * as gpt from "./gpt"
-import { Sahara } from  "./sahara"
-import { usbClass } from "./usblib"
+import { Sahara } from "./sahara";
 import { concatUint8Array, runWithTimeout, containsBytes } from "./utils"
 
 
 export class qdlDevice {
+  /**
+   * @type {Firehose|null}
+   */
+  #firehose = null
+
   /**
    * @param {string} programmerUrl
    */
@@ -13,37 +17,38 @@ export class qdlDevice {
     if (!programmerUrl) {
       throw "programmerUrl is required";
     }
-    this.mode = "";
-    this.cdc = new usbClass();
-    this.sahara = new Sahara(this.cdc, programmerUrl);
-    this.firehose = new Firehose(this.cdc);
+    this.programmerUrl = programmerUrl;
+    /**
+     * @type {string|null}
+     */
+    this.mode = null;
+    /**
+     * @type {Sahara|null}
+     */
+    this.sahara = null;
   }
 
-  async connectToSahara() {
-    while (!this.cdc.connected) {
-      await this.cdc.connect();
-      if (this.cdc.connected) {
-        console.log("QDL device detected");
-        let resp = await runWithTimeout(this.sahara.connect(), 10000);
-        if ("mode" in resp) {
-          this.mode = resp.mode;
-          console.log("Mode detected:", this.mode);
-          return resp;
-        }
-      }
-    }
-    return {"mode" : "error"};
+  get firehose() {
+    if (!this.#firehose) throw new Error("Firehose not configured");
+    return this.#firehose;
   }
 
-  async connect() {
-    const resp = await this.connectToSahara();
-    const mode = resp.mode;
-    if (mode === "sahara") {
-      await this.sahara.uploadLoader();
-    } else if (mode === "error") {
-      throw "Error connecting to Sahara";
-    }
-    await this.firehose.configure();
+  /**
+   * @param {usbClass} cdc
+   * @returns {Promise<void>}
+   */
+  async connect(cdc) {
+    if (!cdc.connected) await cdc.connect();
+    if (!cdc.connected) throw new Error("Could not connect to device");
+    console.debug("[qdl] QDL device detected");
+    this.sahara = new Sahara(cdc, this.programmerUrl);
+    if (!await runWithTimeout(this.sahara.connect(), 10000)) throw new Error("Could not connect to Sahara");
+    console.debug("[qdl] Connected to Sahara");
+    this.mode = "sahara";
+    await this.sahara.uploadLoader();
+    this.#firehose = new Firehose(cdc);
+    if (!await this.firehose.configure()) throw new Error("Could not configure Firehose");
+    console.debug("[qdl] Firehose configured");
     this.mode = "firehose";
   }
 
