@@ -21,6 +21,12 @@ describe("sparse", () => {
     });
   });
 
+  test("getSparseRealSize", async () => {
+    const header = await Sparse.parseFileHeader(inputData);
+    const realSize = await Sparse.getSparseRealSize(inputData, header);
+    expect(realSize).toBe(header.totalBlocks * header.blockSize);
+  });
+
   describe("splitBlob", () => {
     test("compare output", async () => {
       const receivedData = new Blob(await Array.fromAsync(Sparse.splitBlob(inputData)));
