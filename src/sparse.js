@@ -25,47 +25,32 @@ const ChunkType = {
 
 
 /**
- * @typedef {object} ChunkHeader
- * @property {number} type
- * @property {number} blocks
- * @property {number} dataBytes
- */
-
-
-/**
  * @typedef {object} Chunk
- * @extends {ChunkHeader}
  * @property {number} type
  * @property {number} blocks
- * @property {number} dataBytes
- * @property {Blob|null} data
+ * @property {Blob} data
  */
 
 
-class Sparse {
+export class Sparse {
   /**
    * @param {Blob} blob
    * @param {Header} header
    */
   constructor(blob, header) {
     this.blob = blob;
-    this.blockSize = header.blockSize;
-    this.totalChunks = header.totalChunks;
-    this.blobOffset = 0;
+    this.header = header;
   }
 
   /**
-   * @returns {Promise<number>}
+   * @param {Chunk} chunk
+   * @returns {number}
    */
-  async getChunkSize() {
-    const chunkHeader = await parseChunkHeader(this.blob.slice(this.blobOffset, this.blobOffset + CHUNK_HEADER_SIZE));
-    const chunkType = chunkHeader.type;
-    const blocks = chunkHeader.blocks;
-    const dataSize = chunkHeader.dataBytes;
-    this.blobOffset += CHUNK_HEADER_SIZE + dataSize;
-
+  calcChunkRealSize(chunk) {
+    const { type: chunkType, blocks, data } = chunk;
+    const dataSize = data.size;
     if (chunkType === ChunkType.Raw) {
-      if (dataSize !== (blocks * this.blockSize)) {
+      if (dataSize !== (blocks * this.header.blockSize)) {
         throw "Sparse - Chunk input size does not match output size";
       } else {
         return dataSize;
@@ -74,10 +59,10 @@ class Sparse {
       if (dataSize !== 4) {
         throw "Sparse - Fill chunk should have 4 bytes";
       } else {
-        return blocks * this.blockSize;
+        return blocks * this.header.blockSize;
       }
     } else if (chunkType === ChunkType.Skip) {
-      return blocks * this.blockSize;
+      return blocks * this.header.blockSize;
     } else if (chunkType === ChunkType.Crc32) {
       if (dataSize !== 4) {
         throw "Sparse - CRC32 chunk should have 4 bytes";
@@ -90,47 +75,42 @@ class Sparse {
   }
 
   /**
+   * @returns {AsyncIterator<Chunk>}
+   */
+  async* [Symbol.asyncIterator]() {
+    let blobOffset = FILE_HEADER_SIZE;
+    for (let i = 0; i < this.header.totalChunks; i++) {
+      if (blobOffset + CHUNK_HEADER_SIZE >= this.blob.size) {
+        throw "Sparse - Chunk header out of bounds";
+      }
+      const chunk = await this.blob.slice(blobOffset, blobOffset + CHUNK_HEADER_SIZE).arrayBuffer();
+      const view = new DataView(chunk);
+      const totalBytes = view.getUint32(8, true);
+      if (blobOffset + totalBytes > this.blob.size) {
+        throw "Sparse - Chunk data out of bounds";
+      }
+      yield {
+        type: view.getUint16(0, true),
+        blocks: view.getUint32(4, true),
+        data: this.blob.slice(blobOffset + CHUNK_HEADER_SIZE, blobOffset + totalBytes),
+      };
+      blobOffset += totalBytes;
+    }
+    if (blobOffset !== this.blob.size) {
+      console.warn("Sparse - Backing data larger expected");
+    }
+  }
+
+  /**
    * @returns {Promise<number>}
    */
   async getSize() {
-    this.blobOffset = FILE_HEADER_SIZE;
-    let length = 0, chunk = 0;
-    while (chunk < this.totalChunks) {
-      length += await this.getChunkSize();
-      chunk += 1;
+    let length = 0;
+    for await (const chunk of this) {
+      length += this.calcChunkRealSize(chunk);
     }
-    this.blobOffset = FILE_HEADER_SIZE;
     return length;
   }
-}
-
-
-/**
- * @param {Blob} blob
- * @param {Header} header
- * @returns {Promise<number>}
- */
-export async function getSparseRealSize(blob, header) {
-  const sparseImage = new Sparse(blob, header);
-  return await sparseImage.getSize();
-}
-
-
-/**
- * @param {Blob} blob
- * @returns {Promise<ChunkHeader>}
- */
-async function parseChunkHeader(blob) {
-  if (blob.size !== CHUNK_HEADER_SIZE) {
-    console.trace("Sparse - Incorrectly sized blob passed to parseChunkHeader", blob);
-    throw "Sparse - Incorrectly sized blob passed to parseChunkHeader";
-  }
-  const view = new DataView(await blob.arrayBuffer());
-  return {
-    type: view.getUint16(0, true),
-    blocks: view.getUint32(4, true),
-    dataBytes: view.getUint32(8, true) - CHUNK_HEADER_SIZE,
-  };
 }
 
 
@@ -178,10 +158,8 @@ async function populate(chunks, blockSize) {
   let offset = 0;
 
   for (const chunk of chunks) {
-    const chunkType = chunk.type;
-    const blocks = chunk.blocks;
-    const dataSize = chunk.dataBytes;
-    const data = chunk.data;
+    const { type: chunkType, blocks, data } = chunk;
+    const dataSize = data.size;
 
     if (chunkType === ChunkType.Raw) {
       const rawData = new Uint8Array(await data.arrayBuffer());
@@ -210,37 +188,6 @@ async function populate(chunks, blockSize) {
 
 
 /**
- * @param {ChunkHeader} chunk
- * @param {number} blockSize
- * @returns {number}
- */
-function calcChunksRealDataBytes(chunk, blockSize) {
-  switch (chunk.type) {
-    case ChunkType.Raw:
-      return chunk.dataBytes;
-    case ChunkType.Fill:
-      return chunk.blocks * blockSize;
-    case ChunkType.Skip:
-      return chunk.blocks * blockSize;
-    case ChunkType.Crc32:
-      return 0;
-    default:
-      throw "Sparse - Unknown chunk type";
-  }
-}
-
-
-/**
- * @param {ChunkHeader[]} chunks
- * @param {number} blockSize
- * @returns {number}
- */
-function calcChunksSize(chunks, blockSize) {
-  return chunks.map((chunk) => calcChunksRealDataBytes(chunk, blockSize)).reduce((total, c) => total + c, 0);
-}
-
-
-/**
  * @param {Blob} blob
  * @param {number} splitSize
  */
@@ -253,24 +200,19 @@ export async function* splitBlob(blob, splitSize = 1048576 /* maxPayloadSizeToTa
     return;
   }
 
-  header.crc32 = 0;
-  blob = blob.slice(FILE_HEADER_SIZE);
   /** @type {Chunk[]} */
   let splitChunks = [];
-  for (let i = 0; i < header.totalChunks; i++) {
-    const originalChunk = await parseChunkHeader(blob.slice(0, CHUNK_HEADER_SIZE));
-    let originalChunkData = blob.slice(CHUNK_HEADER_SIZE, CHUNK_HEADER_SIZE + originalChunk.dataBytes);
-    blob = blob.slice(CHUNK_HEADER_SIZE + originalChunk.dataBytes);
-
+  const sparse = new Sparse(blob, header);
+  for await (const originalChunk of sparse) {
     /** @type {Chunk[]} */
     const chunksToProcess = [];
-    let realBytesToWrite = calcChunksRealDataBytes(originalChunk, header.blockSize);
+    let realBytesToWrite = sparse.calcChunkRealSize(originalChunk);
 
     const isChunkTypeSkip = originalChunk.type === ChunkType.Skip;
     const isChunkTypeFill = originalChunk.type === ChunkType.Fill;
 
     if (realBytesToWrite > safeToSend) {
-      let bytesToWrite = isChunkTypeSkip ? 1 : originalChunk.dataBytes;
+      let bytesToWrite = isChunkTypeSkip ? 1 : originalChunk.data.size;
 
       while (bytesToWrite > 0) {
         const toSend = Math.min(safeToSend, bytesToWrite);
@@ -281,7 +223,7 @@ export async function* splitBlob(blob, splitSize = 1048576 /* maxPayloadSizeToTa
               type: originalChunk.type,
               blocks: realSend / header.blockSize,
               dataBytes: isChunkTypeSkip ? 0 : toSend,
-              data: isChunkTypeSkip ? new Blob([]) : originalChunkData.slice(0, toSend),
+              data: isChunkTypeSkip ? new Blob([]) : originalChunk.data.slice(0, toSend),
             });
             realBytesToWrite -= realSend;
           }
@@ -290,18 +232,18 @@ export async function* splitBlob(blob, splitSize = 1048576 /* maxPayloadSizeToTa
             type: originalChunk.type,
             blocks: toSend / header.blockSize,
             dataBytes: toSend,
-            data: originalChunkData.slice(0, toSend),
+            data: originalChunk.data.slice(0, toSend),
           });
         }
         bytesToWrite -= toSend;
-        originalChunkData = originalChunkData.slice(toSend);
+        originalChunk.data = originalChunk.data.slice(toSend);
       }
     } else {
-      chunksToProcess.push({ ...originalChunk, data: originalChunkData });
+      chunksToProcess.push(originalChunk);
     }
     for (const chunk of chunksToProcess) {
-      const remainingBytes = splitSize - calcChunksSize(splitChunks);
-      const realChunkBytes = calcChunksRealDataBytes(chunk, header.blockSize);
+      const remainingBytes = splitSize - splitChunks.reduce((total, c) => total + sparse.calcChunkRealSize(c), 0);
+      const realChunkBytes = sparse.calcChunkRealSize(chunk);
       if (remainingBytes >= realChunkBytes) {
         splitChunks.push(chunk);
       } else {

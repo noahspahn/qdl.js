@@ -1,5 +1,5 @@
 import * as Bun from "bun";
-import { describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 
 import * as Sparse from "./sparse";
 
@@ -7,8 +7,15 @@ const inputData = Bun.file("./test/fixtures/sparse.img");
 const expectedData = Bun.file("./test/fixtures/raw.img");
 
 describe("sparse", () => {
-  test("parseFileHeader", async () => {
-    expect(await Sparse.parseFileHeader(inputData)).toEqual({
+  /** @type {import("./sparse").Header} */
+  let header;
+
+  beforeAll(async () => {
+    header = await Sparse.parseFileHeader(inputData);
+  });
+
+  test("parseFileHeader", () => {
+    expect(header).toEqual({
       magic: 0xED26FF3A,
       majorVersion: 1,
       minorVersion: 0,
@@ -21,10 +28,22 @@ describe("sparse", () => {
     });
   });
 
-  test("getSparseRealSize", async () => {
-    const header = await Sparse.parseFileHeader(inputData);
-    const realSize = await Sparse.getSparseRealSize(inputData, header);
-    expect(realSize).toBe(header.totalBlocks * header.blockSize);
+  describe("Sparse", () => {
+    /** @type {Sparse.Sparse} */
+    let sparse;
+
+    beforeAll(() => {
+      sparse = new Sparse.Sparse(inputData, header);
+    });
+
+    test("chunk iterator", async () => {
+      const chunks = await Array.fromAsync(sparse);
+      expect(chunks.length).toBe(sparse.header.totalChunks);
+    });
+
+    test("getSize", async () => {
+      expect(await sparse.getSize()).toBe(sparse.header.totalBlocks * sparse.header.blockSize);
+    });
   });
 
   describe("splitBlob", () => {
@@ -32,14 +51,19 @@ describe("sparse", () => {
       let offset = 0;
       for await (const blob of Sparse.splitBlob(inputData)) {
         const receivedChunkBuffer = Buffer.from(new Uint8Array(await blob.arrayBuffer()));
-        const expectedSlice = expectedData.slice(offset, offset + blob.size);
-        const expectedChunkBuffer = Buffer.from(new Uint8Array(await expectedSlice.arrayBuffer()));
-        expect(receivedChunkBuffer.compare(expectedChunkBuffer), `range ${offset} to ${offset + blob.size}`).toBe(0);
+        const [start, end] = [offset, offset + blob.size];
         offset += blob.size;
+        const expectedSlice = expectedData.slice(start, end);
+        const expectedChunkBuffer = Buffer.from(new Uint8Array(await expectedSlice.arrayBuffer()));
+        const result = receivedChunkBuffer.compare(expectedChunkBuffer);
+        if (result) {
+          console.debug("Expected:", expectedChunkBuffer.toString("hex"));
+          console.debug("Received:", receivedChunkBuffer.toString("hex"));
+        }
+        expect(result, `range ${start} to ${end} differs`).toBe(0);
       }
       expect(offset).toEqual(expectedData.size);
     });
-
     test.each([1024, 8192])("splitSize: %p", async (splitSize) => {
       let prevSize = 0;
       for await (const part of Sparse.splitBlob(inputData, splitSize)) {
