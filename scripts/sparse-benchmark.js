@@ -7,12 +7,15 @@ if (Bun.argv.length < 3) {
 const sparseImage = Bun.file(Bun.argv[2]);
 const expectedRawImage = Bun.argv[3] ? Bun.file(Bun.argv[3]) : null;
 
+const sparse = await Sparse.from(sparseImage);
+if (!sparse) throw "Failed to parse sparse file";
+
 let offset = 0;
 const startTime = performance.now();
-for await (const blob of Sparse.splitBlob(sparseImage)) {
+for await (const data of sparse.read()) {
   if (expectedRawImage) {
-    const receivedChunkBuffer = Buffer.from(new Uint8Array(await blob.arrayBuffer()));
-    const [start, end] = [offset, offset + blob.size];
+    const receivedChunkBuffer = Buffer.from(data);
+    const [start, end] = [offset, offset + data.byteLength];
     const expectedSlice = expectedRawImage.slice(start, end);
     const expectedChunkBuffer = Buffer.from(new Uint8Array(await expectedSlice.arrayBuffer()));
     const result = receivedChunkBuffer.compare(expectedChunkBuffer);
@@ -22,7 +25,7 @@ for await (const blob of Sparse.splitBlob(sparseImage)) {
       throw `range ${start} to ${end} differs`;
     }
   }
-  offset += blob.size;
+  offset += data.byteLength;
 }
 const endTime = performance.now();
 if (expectedRawImage && offset !== expectedRawImage.size) {

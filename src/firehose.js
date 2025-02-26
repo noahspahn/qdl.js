@@ -195,11 +195,14 @@ export class Firehose {
     let total = blob.size;
     let sparseformat = false;
 
-    const sparseHeader = await Sparse.parseFileHeader(blob.slice(0, Sparse.FILE_HEADER_SIZE));
-    if (sparseHeader !== null) {
+    const sparse = await Sparse.from(blob);
+    let chunks;
+    if (sparse) {
       sparseformat = true;
-      const sparse = new Sparse.Sparse(blob, sparseHeader);
       total = await sparse.getSize();
+      chunks = sparse.read();
+    } else {
+      chunks = [new Uint8Array(await blob.arrayBuffer())];
     }
 
     let numPartitionSectors = Math.floor(total / this.cfg.SECTOR_SIZE_IN_BYTES);
@@ -217,14 +220,13 @@ export class Firehose {
     let bytesWritten = 0;
 
     if (rsp.resp) {
-
-      for await (const split of Sparse.splitBlob(blob)) {
+      for await (const data of chunks) {
         let offset = 0;
-        let bytesToWriteSplit = split.size;
+        let bytesToWrite = data.byteLength;
 
-        while (bytesToWriteSplit > 0) {
-          const wlen = Math.min(bytesToWriteSplit, this.cfg.MaxPayloadSizeToTargetInBytes);
-          let wdata = new Uint8Array(await split.slice(offset, offset + wlen).arrayBuffer());
+        while (bytesToWrite > 0) {
+          const wlen = Math.min(bytesToWrite, this.cfg.MaxPayloadSizeToTargetInBytes);
+          let wdata = new Uint8Array(data.slice(offset, offset + wlen));
           if (wlen % this.cfg.SECTOR_SIZE_IN_BYTES !== 0) {
             const fillLen = (Math.floor(wlen/this.cfg.SECTOR_SIZE_IN_BYTES) * this.cfg.SECTOR_SIZE_IN_BYTES) +
                           this.cfg.SECTOR_SIZE_IN_BYTES;
@@ -235,7 +237,7 @@ export class Firehose {
           await this.cdc.write(new Uint8Array(0), true);
           offset += wlen;
           bytesWritten += wlen;
-          bytesToWriteSplit -= wlen;
+          bytesToWrite -= wlen;
 
           // Need this for sparse image when the data.length < MaxPayloadSizeToTargetInBytes
           // Add ~2.4s to total flash time
