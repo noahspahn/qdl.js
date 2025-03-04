@@ -1,4 +1,3 @@
-import * as Sparse from "./sparse"
 import { concatUint8Array, containsBytes, compareStringToBytes, sleep } from "./utils"
 import { toXml, xmlParser } from "./xml"
 
@@ -194,75 +193,51 @@ export class Firehose {
    * @returns {Promise<boolean>}
    */
   async cmdProgram(physicalPartitionNumber, startSector, blob, onProgress = undefined) {
-    let total = blob.size;
-    let sparseformat = false;
-
-    const sparse = await Sparse.from(blob);
-    let chunks;
-    if (sparse) {
-      sparseformat = true;
-      total = await sparse.getSize();
-      chunks = sparse.read();
-    } else {
-      chunks = [new Uint8Array(await blob.arrayBuffer())];
-    }
-
-    let numPartitionSectors = Math.floor(total / this.cfg.SECTOR_SIZE_IN_BYTES);
-    if (total % this.cfg.SECTOR_SIZE_IN_BYTES !== 0) {
-      numPartitionSectors += 1;
-    }
+    const total = blob.size;
 
     const rsp = await this.xmlSend(toXml("program", {
       SECTOR_SIZE_IN_BYTES: this.cfg.SECTOR_SIZE_IN_BYTES,
-      num_partition_sectors: numPartitionSectors,
+      num_partition_sectors: Math.ceil(total / this.cfg.SECTOR_SIZE_IN_BYTES),
       physical_partition_number: physicalPartitionNumber,
       start_sector: startSector,
     }));
+    if (!rsp.resp) {
+      console.error("Firehose - Failed to program");
+      return false;
+    }
+
     let i = 0;
-    let bytesWritten = 0;
+    let offset = 0;
+    let bytesToWrite = total;
 
-    if (rsp.resp) {
-      for await (const data of chunks) {
-        let offset = 0;
-        let bytesToWrite = data.byteLength;
-
-        while (bytesToWrite > 0) {
-          const wlen = Math.min(bytesToWrite, this.cfg.MaxPayloadSizeToTargetInBytes);
-          let wdata = new Uint8Array(data.slice(offset, offset + wlen));
-          if (wlen % this.cfg.SECTOR_SIZE_IN_BYTES !== 0) {
-            const fillLen = (Math.floor(wlen/this.cfg.SECTOR_SIZE_IN_BYTES) * this.cfg.SECTOR_SIZE_IN_BYTES) +
-                          this.cfg.SECTOR_SIZE_IN_BYTES;
-            const fillArray = new Uint8Array(fillLen-wlen).fill(0x00);
-            wdata = concatUint8Array([wdata, fillArray]);
-          }
-          await this.cdc.write(wdata);
-          await this.cdc.write(new Uint8Array(0));
-          offset += wlen;
-          bytesWritten += wlen;
-          bytesToWrite -= wlen;
-
-          // Need this for sparse image when the data.length < MaxPayloadSizeToTargetInBytes
-          // Add ~2.4s to total flash time
-          if (sparseformat && bytesWritten < total) {
-            await this.cdc.write(new Uint8Array(0));
-          }
-
-          if (i % 10 === 0) {
-            onProgress?.(bytesWritten / total);
-          }
-          i += 1;
-        }
+    while (bytesToWrite > 0) {
+      const wlen = Math.min(bytesToWrite, this.cfg.MaxPayloadSizeToTargetInBytes);
+      let wdata = new Uint8Array(await blob.slice(offset, offset + wlen).arrayBuffer());
+      if (wlen % this.cfg.SECTOR_SIZE_IN_BYTES !== 0) {
+        const fillLen = (Math.floor(wlen / this.cfg.SECTOR_SIZE_IN_BYTES) + 1) * this.cfg.SECTOR_SIZE_IN_BYTES;
+        const fillArray = new Uint8Array(fillLen - wlen).fill(0x00);
+        wdata = concatUint8Array([wdata, fillArray]);
       }
+      await this.cdc.write(wdata);
+      await this.cdc.write(new Uint8Array(0));
+      offset += wlen;
+      bytesToWrite -= wlen;
 
-      const wd  = await this.waitForData();
-      const response = this.xml.getResponse(wd);
-      if ("value" in response) {
-        if (response.value !== "ACK") {
-          return false;
-        }
-      } else {
-        return false;
+      if (i % 10 === 0) {
+        onProgress?.(offset / total);
       }
+      i += 1;
+    }
+
+    const wd = await this.waitForData();
+    const response = this.xml.getResponse(wd);
+    if (!("value" in response)){
+      console.error("Firehose - Failed to program: no return value");
+      return false;
+    }
+    if (response.value !== "ACK") {
+      console.error("Firehose - Failed to program: negative response");
+      return false;
     }
 
     onProgress?.(1.0);

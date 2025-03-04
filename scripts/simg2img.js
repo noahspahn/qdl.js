@@ -9,8 +9,17 @@ export async function simg2img(inputPath, outputPath) {
   if (!sparse) throw "Failed to parse sparse file";
 
   const writer = outputImage.writer({ highWaterMark: 4 * 1024 * 1024 });
-  for await (const data of sparse.read()) {
-    writer.write(data);
+  const size = await sparse.getSize();
+  let prevOffset = 0;
+  for await (const [offset, chunk] of sparse.read()) {
+    if (prevOffset < offset) {
+      writer.write(new Uint8Array(offset - prevOffset).buffer);
+    }
+    writer.write(await chunk.arrayBuffer());
+    prevOffset = offset + chunk.size;
+  }
+  if (prevOffset < size) {
+    writer.write(new Uint8Array(size - prevOffset).buffer);
   }
   writer.end();
 }

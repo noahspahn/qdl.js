@@ -1,6 +1,7 @@
 import { Firehose } from "./firehose"
 import * as gpt from "./gpt"
 import { Sahara } from "./sahara";
+import * as Sparse from "./sparse";
 import { concatUint8Array, runWithTimeout, containsBytes } from "./utils"
 
 
@@ -96,36 +97,47 @@ export class qdlDevice {
   /**
    * @param {string} partitionName
    * @param {Blob} blob
-   * @param {progressCallback} onProgress
+   * @param {progressCallback} [onProgress]
    * @returns {Promise<boolean>}
    */
-  async flashBlob(partitionName, blob, onProgress=()=>{}) {
-    let startSector = 0;
-    const dp = await this.detectPartition(partitionName);
-    const found = dp[0];
-    if (found) {
-      const lun = dp[1];
-      const imgSize = blob.size;
-      let imgSectors = Math.floor(imgSize / this.firehose.cfg.SECTOR_SIZE_IN_BYTES);
-      if (imgSize % this.firehose.cfg.SECTOR_SIZE_IN_BYTES !== 0) {
-        imgSectors += 1;
-      }
-      if (partitionName.toLowerCase() !== "gpt") {
-        const partition = dp[2];
-        if (imgSectors > partition.sectors) {
-          console.error("partition has fewer sectors compared to the flashing image");
-          return false;
-        }
-        startSector = partition.sector;
-        console.info(`Flashing ${partitionName}...`);
-        if (await this.firehose.cmdProgram(lun, startSector, blob, (progress) => onProgress(progress))) {
-          console.debug(`partition ${partitionName}: startSector ${partition.sector}, sectors ${partition.sectors}`);
-        } else {
-          throw `Error while writing ${partitionName}`;
-        }
-      }
-    } else {
+  async flashBlob(partitionName, blob, onProgress) {
+    const [found, lun, partition] = await this.detectPartition(partitionName);
+    if (!found) {
       throw `Can't find partition ${partitionName}`;
+    }
+    if (partitionName.toLowerCase() === "gpt") {
+      // TODO: error?
+      return true;
+    }
+    const imgSectors = Math.ceil(blob.size / this.firehose.cfg.SECTOR_SIZE_IN_BYTES);
+    if (imgSectors > partition.sectors) {
+      console.error("partition has fewer sectors compared to the flashing image");
+      return false;
+    }
+    console.info(`Flashing ${partitionName}...`);
+    console.debug(`startSector ${partition.sector}, sectors ${partition.sectors}`);
+    const sparse = await Sparse.from(blob);
+    if (sparse === null) {
+      return await this.firehose.cmdProgram(lun, partition.sector, blob, onProgress);
+    }
+    console.debug(`Erasing ${partitionName}...`);
+    if (!await this.firehose.cmdErase(lun, partition.sector, partition.sectors)) {
+      console.error("qdl - Failed to erase partition before sparse flashing");
+      return false;
+    }
+    // TODO: get this from manifest/pass from caller
+    const totalSize = await sparse.getSize();
+    console.debug(`Writing chunks to ${partitionName}...`);
+    for await (const [offset, chunk] of sparse.read()) {
+      if (offset % this.firehose.cfg.SECTOR_SIZE_IN_BYTES !== 0) {
+        throw "qdl - Offset not aligned to sector size";
+      }
+      const sector = partition.sector + offset / this.firehose.cfg.SECTOR_SIZE_IN_BYTES;
+      const onChunkProgress = (progress) => onProgress?.(offset / totalSize + progress * chunk.size / totalSize);
+      if (!await this.firehose.cmdProgram(lun, sector, chunk, onChunkProgress)) {
+        console.debug("qdl - Failed to program chunk")
+        return false;
+      }
     }
     return true;
   }

@@ -5,7 +5,7 @@ import * as Sparse from "./sparse";
 import { simg2img } from "../scripts/simg2img.js";
 
 const inputData = Bun.file("./test/fixtures/sparse.img");
-const expectedData = Bun.file("./test/fixtures/raw.img");
+const expectedPath = "./test/fixtures/raw.img";
 
 describe("sparse", () => {
   test("parseFileHeader", async () => {
@@ -39,13 +39,12 @@ describe("sparse", () => {
       expect(await sparse.getSize()).toBe(sparse.header.totalBlocks * sparse.header.blockSize);
     });
 
-    test.each([4096, 8192])("read(maxSize: %p)", async (splitSize) => {
-      let prevLength = 0;
-      for await (const data of sparse.read(splitSize)) {
-        expect(data.byteLength).toBeGreaterThan(0);
-        expect(data.byteLength).toBeLessThanOrEqual(splitSize);
-        if (prevLength) expect(data.byteLength + prevLength).toBeGreaterThan(splitSize);
-        prevLength = data.byteLength;
+    test("read", async () => {
+      let prevOffset = undefined;
+      for await (const [offset, chunk] of sparse.read()) {
+        expect(offset).toBeGreaterThanOrEqual(prevOffset ?? 0);
+        expect(chunk.size).toBeGreaterThan(0);
+        prevOffset = offset + chunk.size;
       }
     });
   });
@@ -53,6 +52,6 @@ describe("sparse", () => {
   test("simg2img", async () => {
     const outputPath = `/tmp/${Bun.randomUUIDv7()}.img`;
     await simg2img(inputData.name, outputPath);
-    await Bun.$`cmp ${outputPath} ${expectedData.name}`;
+    await Bun.$`cmp ${outputPath} ${expectedPath}`;
   });
 });
