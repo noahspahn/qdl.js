@@ -115,6 +115,7 @@ export class Firehose {
       SkipWrite: this.cfg.SkipWrite,
     });
     await this.xmlSend(connectCmd, false);
+    await sleep(80);
     this.luns = Array.from({length: this.cfg.maxlun}, (x, i) => i);
     return true;
   }
@@ -235,7 +236,7 @@ export class Firehose {
             wdata = concatUint8Array([wdata, fillArray]);
           }
           await this.cdc.write(wdata);
-          await this.cdc.write(new Uint8Array(0), true);
+          await this.cdc.write(new Uint8Array(0));
           offset += wlen;
           bytesWritten += wlen;
           bytesToWrite -= wlen;
@@ -243,7 +244,7 @@ export class Firehose {
           // Need this for sparse image when the data.length < MaxPayloadSizeToTargetInBytes
           // Add ~2.4s to total flash time
           if (sparseformat && bytesWritten < total) {
-            await this.cdc.write(new Uint8Array(0), true);
+            await this.cdc.write(new Uint8Array(0));
           }
 
           if (i % 10 === 0) {
