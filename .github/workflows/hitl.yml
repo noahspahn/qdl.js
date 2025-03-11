@@ -27,4 +27,5 @@ jobs:
           sleep 1
 
       - run: qdl.js
+      - run: qdl.js reset; sleep 1
       - run: qdl.js
