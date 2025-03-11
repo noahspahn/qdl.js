@@ -1,4 +1,4 @@
-import { concatUint8Array, containsBytes, compareStringToBytes, runWithTimeout, sleep } from "./utils"
+import { concatUint8Array, containsBytes, compareStringToBytes, runWithTimeout } from "./utils"
 import { toXml, xmlParser } from "./xml"
 
 
@@ -63,23 +63,13 @@ export class Firehose {
   async xmlSend(command, wait = true) {
     // FIXME: warn if command is shortened
     const dataToSend = new TextEncoder().encode(command).slice(0, this.cfg.MaxXMLSizeInBytes);
-    await this.cdc.write(dataToSend, wait);
-
-    let rData = new Uint8Array();
-    let counter = 0;
-    const timeout = 3;
-    while (!(containsBytes("<response value", rData))) {
-      const tmp = await this.cdc.read();
-      if (compareStringToBytes("", tmp)) {
-        counter += 1;
-        await sleep(50);
-        if (counter > timeout) {
-          break;
-        }
-      }
-      rData = concatUint8Array([rData, tmp]);
+    try {
+      await runWithTimeout(this.cdc.write(dataToSend, wait), 1000);
+    } catch (e) {
+      throw "Firehose - Timed out while sending command";
     }
 
+    const rData = await this.waitForData();
     const resp = this.xml.getResponse(rData);
     const status = !("value" in resp) || resp.value === "ACK" || resp.value === "true";
     if ("rawmode" in resp) {
@@ -113,9 +103,25 @@ export class Firehose {
       SkipStorageInit: this.cfg.SkipStorageInit,
       SkipWrite: this.cfg.SkipWrite,
     });
-    await this.xmlSend(connectCmd, false);
-    await sleep(80);
-    this.luns = Array.from({length: this.cfg.maxlun}, (x, i) => i);
+    await this.cdc.write(new TextEncoder().encode(connectCmd), false);
+    let data = await this.waitForData();
+    let response = this.xml.getResponse(data);
+    if (!("MemoryName" in response)) {
+      // not reached handler yet
+      data = await this.waitForData();
+      response = this.xml.getResponse(data);
+    }
+    if (response.value !== "ACK") {
+      throw new Error("Negative response");
+    }
+    const log = this.xml.getLog(data);
+    if (!log.find((message) => message.includes("Calling handler for configure"))) {
+      throw new Error("Failed to configure: handler not called");
+    }
+    if (!log.find((message) => message.includes("Storage type set to value UFS"))) {
+      throw new Error("Failed to configure: storage type not set");
+    }
+    this.luns = Array.from({ length: this.cfg.maxlun }, (x, i) => i);
     return true;
   }
 
@@ -160,21 +166,20 @@ export class Firehose {
   }
 
   /**
+   * @param {number} [retries]
    * @returns {Promise<Uint8Array>}
    */
-  async waitForData() {
+  async waitForData(retries = 3) {
     let tmp = new Uint8Array();
     let timeout = 0;
-
-    while (!containsBytes("response value", tmp)) {
-      const res = await this.cdc.read();
+    while (!containsBytes("<response", tmp)) {
+      const res = await runWithTimeout(this.cdc.read(), 150).catch(() => new Uint8Array());
       if (compareStringToBytes("", res)) {
         timeout += 1;
-        if (timeout === 4) {
-          break;
-        }
-        await sleep(20);
+        if (timeout > retries) break;
+        continue;
       }
+      timeout = 0;
       tmp = concatUint8Array([tmp, res]);
     }
     return tmp;

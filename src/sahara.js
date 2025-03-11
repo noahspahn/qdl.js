@@ -1,5 +1,6 @@
 import { CommandHandler, cmd_t, sahara_mode_t, status_t, exec_cmd_t } from "./saharaDefs"
-import { concatUint8Array, packGenerator } from "./utils";
+import { containsBytes, packGenerator, runWithTimeout } from "./utils";
+import { toXml } from "./xml.js";
 
 
 export class Sahara {
@@ -17,18 +18,42 @@ export class Sahara {
   }
 
   /**
-   * TODO: detect other modes
-   * @returns {Promise<boolean>}
+   * @returns {Promise<string>}
    */
   async connect() {
-    const resp = await this.cdc.read(0xC * 0x4);
-    if (resp.length > 1 && resp[0] === 0x01) {
-      const pkt = this.ch.pkt_cmd_hdr(resp);
-      if (pkt.cmd === cmd_t.SAHARA_HELLO_REQ) {
-        return true;
+    let respPromise = this.cdc.read(0xC * 0x4);
+    let resp = await runWithTimeout(respPromise, 500).catch(() => new Uint8Array());
+    if (resp.length > 1) {
+      if (resp[0] === 0x01) {
+        const pkt = this.ch.pkt_cmd_hdr(resp);
+        if (pkt.cmd === cmd_t.SAHARA_HELLO_REQ) {
+          return "sahara";
+        }
+        if (pkt.cmd === cmd_t.SAHARA_END_TRANSFER) {
+          return "sahara";
+        }
+        throw "Sahara - Connect failed: unknown command";
+      }
+      if (containsBytes("<?xml", resp)) {
+        return "firehose";
+      }
+    } else {
+      try {
+        await runWithTimeout(this.cdc.write(new TextEncoder().encode(toXml("nop"))), 1000);
+        if (!resp) respPromise = this.cdc.read();
+        resp = await runWithTimeout(respPromise, 2000).catch(() => new Uint8Array());
+      } catch {
+        resp = new Uint8Array();
+      }
+      if (containsBytes("<?xml", resp)) {
+        return "firehose";
+      }
+      if (resp[0] === cmd_t.SAHARA_END_TRANSFER) {
+        return "sahara";
       }
     }
-    return false;
+    console.error("Device is in Sahara error state, please reboot the device.");
+    return "error";
   }
 
   async cmdHello(mode, version=2, version_min=1, max_cmd_len=0) {
