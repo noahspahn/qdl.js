@@ -329,4 +329,16 @@ export class Firehose {
     if (!resp.resp || !resp.log) throw new Error("Failed to get storage info", { cause: resp.error });
     return resp.log;
   }
+
+  /**
+   * @param {number} lun
+   * @param {number} grow_last_partition
+   * @returns {Promise<void>}
+   */
+  async cmdFixGpt(lun, grow_last_partition) {
+    const val = await this.xmlSend(toXml("fixgpt", { lun, grow_last_partition }));
+    if (!val.resp) {
+      throw "Firehose - Failed to fix gpt";
+    }
+  }
 }

@@ -82,6 +82,14 @@ export class qdlDevice {
 
   /**
    * @param {number} lun
+   * @param {boolean} [growLastPartition]
+   */
+  async fixGpt(lun, growLastPartition = true) {
+    await this.firehose.cmdFixGpt(lun, growLastPartition ? 1 : 0);
+  }
+
+  /**
+   * @param {number} lun
    * @param {string[]} [preservePartitions]
    * @returns {Promise<boolean>}
    */
@@ -272,7 +280,11 @@ export class qdlDevice {
         const slot = partitionName.slice(-2);
         // backup gpt header is more reliable, since it should always have the non-corrupted gpt header
         const [backupGuidGpt] = await this.getGpt(lun, guidGpt.header.backupLba);
-        const partition = backupGuidGpt.partentries[partitionName];
+        let partition = backupGuidGpt.partentries[partitionName];
+        if (!partition) {
+          // console.warn(`Partition ${partitionName} not found in backup GPT`);
+          partition = guidGpt.partentries[partitionName];
+        }
         const active = (((BigInt(partition.flags) >> (BigInt(gpt.AB_FLAG_OFFSET) * BigInt(8))))
                       & BigInt(gpt.AB_PARTITION_ATTR_SLOT_ACTIVE)) === BigInt(gpt.AB_PARTITION_ATTR_SLOT_ACTIVE);
         if (slot === "_a" && active) {
