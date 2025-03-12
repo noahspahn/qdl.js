@@ -85,21 +85,24 @@ export class qdlDevice {
    * @param {string[]} [preservePartitions]
    * @returns {Promise<boolean>}
    */
-  async eraseLun(lun, preservePartitions = ["gpt", "persist"]) {
-    const [guidGpt] = await this.getGpt(lun);
-    if (guidGpt === null) {
+  async eraseLun(lun, preservePartitions = ["mbr", "gpt", "persist"]) {
+    const [mainGpt] = await this.getGpt(lun);
+    if (mainGpt === null) {
       throw new Error(`Could not read GPT data for LUN ${lun}`);
     }
-    const { header } = guidGpt;
 
+    const { currentLba, backupLba, firstUsableLba, lastUsableLba } = mainGpt.header;
     const protectedRanges = [];
-    if ("gpt" in preservePartitions) {
-      protectedRanges.push({ name: "gpt-current", start: header.currentLba, end: header.currentLba });
-      protectedRanges.push({ name: "gpt-backup", start: header.backupLba, end: header.backupLba });
+    if (preservePartitions.includes("mbr")) {
+      protectedRanges.push({ name: "mbr", start: 0, end: 0 });
+    }
+    if (preservePartitions.includes("gpt")) {
+      protectedRanges.push({ name: "gpt-current", start: currentLba, end: firstUsableLba - 1 });
+      protectedRanges.push({ name: "gpt-backup", start: lastUsableLba + 1, end: backupLba });
     }
     for (const name of preservePartitions) {
-      if (!(name in guidGpt.partentries)) continue;
-      const part = guidGpt.partentries[name];
+      if (!(name in mainGpt.partentries)) continue;
+      const part = mainGpt.partentries[name];
       protectedRanges.push({ name, start: part.sector, end: part.sector + part.sectors - 1 });
     }
     protectedRanges.sort((a, b) => a.start - b.start);
@@ -111,7 +114,7 @@ export class qdlDevice {
         const nextRange = protectedRanges[i];
         if (nextRange.start <= currentRange.end + 1) {
           currentRange.end = Math.max(currentRange.end, nextRange.end);
-          currentRange.name += `+${nextRange.name}`;
+          currentRange.name += `,${nextRange.name}`;
         } else {
           mergedProtectedRanges.push(currentRange);
           currentRange = {...nextRange};
@@ -124,16 +127,15 @@ export class qdlDevice {
     }
 
     const erasableRanges = [];
-    let lastEndSector = 0;
+    let lastEndSector = -1;
     for (const range of mergedProtectedRanges) {
       if (range.start > lastEndSector + 1) {
         erasableRanges.push({ start: lastEndSector + 1, end: range.start - 1 });
       }
       lastEndSector = range.end;
     }
-    const lastUsableSector = header.lastUsableLba;
-    if (lastEndSector < lastUsableSector) {
-      erasableRanges.push({ start: lastEndSector + 1, end: lastUsableSector });
+    if (lastEndSector < backupLba) {
+      erasableRanges.push({ start: lastEndSector + 1, end: backupLba });
     }
 
     for (const range of erasableRanges) {
