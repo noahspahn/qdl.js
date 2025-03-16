@@ -140,7 +140,7 @@ export class Firehose {
 
   /**
    * @param {number} physicalPartitionNumber
-   * @param {number} startSector
+   * @param {bigint} startSector
    * @param {number} numPartitionSectors
    * @returns {Promise<Uint8Array>}
    */
@@ -204,7 +204,7 @@ export class Firehose {
 
   /**
    * @param {number} physicalPartitionNumber
-   * @param {number} startSector
+   * @param {bigint} startSector
    * @param {Blob} blob
    * @param {progressCallback|undefined} [onProgress] - Returns number of bytes written
    * @returns {Promise<boolean>}
@@ -264,7 +264,7 @@ export class Firehose {
 
   /**
    * @param {number} physicalPartitionNumber
-   * @param {number} startSector
+   * @param {bigint} startSector
    * @param {number} numPartitionSectors
    * @returns {Promise<boolean>}
    */
