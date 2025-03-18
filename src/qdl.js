@@ -160,7 +160,7 @@ export class qdlDevice {
     /** @type {{ name: string; start: bigint; end: bigint }[]} */
     const protectedRanges = [];
     if (preservePartitions.includes("mbr")) {
-      protectedRanges.push({ name: "mbr", start: 0, end: 0 });
+      protectedRanges.push({ name: "mbr", start: 0n, end: 0n });
     }
     if (preservePartitions.includes("gpt")) {
       protectedRanges.push({ name: "gpt-current", start: currentLba, end: firstUsableLba - 1n });
@@ -174,7 +174,7 @@ export class qdlDevice {
       }
       protectedRanges.push({ name, start: part.start, end: part.end });
     }
-    protectedRanges.sort((a, b) => a.start - b.start);
+    protectedRanges.sort((a, b) => Number(a.start - b.start));
 
     /** @type {{ name: string; start: bigint; end: bigint }[]} */
     const mergedProtectedRanges = [];
@@ -182,8 +182,8 @@ export class qdlDevice {
       let currentRange = {...protectedRanges[0]};
       for (let i = 1; i < protectedRanges.length; i++) {
         const nextRange = protectedRanges[i];
-        if (nextRange.start <= currentRange.end + 1) {
-          currentRange.end = Math.max(currentRange.end, nextRange.end);
+        if (nextRange.start <= currentRange.end + 1n) {
+          currentRange.end = currentRange.end > nextRange.end ? currentRange.end : nextRange.end;
           currentRange.name += `,${nextRange.name}`;
         } else {
           mergedProtectedRanges.push(currentRange);
@@ -200,13 +200,13 @@ export class qdlDevice {
     const erasableRanges = [];
     let lastEndSector = -1n;
     for (const range of mergedProtectedRanges) {
-      if (range.start > lastEndSector + 1) {
+      if (range.start > lastEndSector + 1n) {
         erasableRanges.push({ start: lastEndSector + 1n, end: range.start - 1n });
       }
       lastEndSector = range.end;
     }
-    if (lastEndSector < backupLba) {
-      erasableRanges.push({ start: lastEndSector + 1n, end: backupLba });
+    if (lastEndSector < alternateLba) {
+      erasableRanges.push({ start: lastEndSector + 1n, end: alternateLba });
     }
 
     for (const range of erasableRanges) {
