@@ -1,7 +1,33 @@
 {
   "name": "@commaai/qdl",
   "version": "0.1.0",
+  "description": "JavaScript/TypeScript library for Qualcomm Download (QDL) protocol communication with devices in Emergency Download mode",
+  "keywords": [
+    "qualcomm",
+    "qdl",
+    "edl",
+    "firehose",
+    "sahara",
+    "android",
+    "flashing",
+    "webusb",
+    "firmware",
+    "bootloader"
+  ],
+  "homepage": "https://github.com/commaai/qdl.js#readme",
+  "bugs": {
+    "url": "https://github.com/commaai/qdl.js/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/commaai/qdl.js.git"
+  },
   "license": "MIT",
+  "author": {
+    "name": "comma.ai",
+    "email": "support@comma.ai",
+    "url": "https://comma.ai"
+  },
   "type": "module",
   "main": "dist/qdl.js",
   "types": "dist/qdl.d.ts",
@@ -21,16 +47,56 @@
     "./utils": {
       "types": "./dist/utils.d.ts",
       "import": "./dist/utils.js"
+    },
+    "./sparse": {
+      "types": "./dist/sparse.d.ts",
+      "import": "./dist/sparse.js"
+    },
+    "./gpt": {
+      "types": "./dist/gpt.d.ts",
+      "import": "./dist/gpt.js"
+    },
+    "./firehose": {
+      "types": "./dist/firehose.d.ts",
+      "import": "./dist/firehose.js"
+    },
+    "./sahara": {
+      "types": "./dist/sahara.d.ts",
+      "import": "./dist/sahara.js"
     }
   },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && chmod +x dist/bin/*.js",
+    "clean": "rm -rf dist",
+    "dev": "tsc --watch",
     "postinstall": "bun run build",
-    "lint": "biome lint"
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run clean && npm run build && npm test && npm run lint",
+    "lint": "biome lint",
+    "lint:fix": "biome lint --fix",
+    "format": "biome lint --write",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
+    "demo:serve": "cd demo && bun run serve.ts",
+    "demo:build": "cd demo && bun run build.ts",
+    "docs:generate": "typedoc --out docs src/index.ts",
+    "release": "npm version patch && npm publish",
+    "release:minor": "npm version minor && npm publish",
+    "release:major": "npm version major && npm publish"
   },
   "bin": {
     "simg2img.js": "dist/bin/simg2img.js",
     "qdl.js": "dist/bin/qdl.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "//devDependencies": {
     "@biomejs/biome": "code linter and formatter",
@@ -42,6 +108,8 @@
     "@happy-dom/global-registrator": "^16.7.2",
     "@types/bun": "latest",
     "@types/w3c-web-usb": "^1.0.10",
+    "typedoc": "^0.26.11",
+    "typescript": "^5.7.3",
     "xz-decompress": "^0.2.2"
   },
   "//dependencies": {
@@ -67,5 +135,9 @@
   "trustedDependencies": [
     "@biomejs/biome",
     "usb"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
 }

@@ -47,9 +47,21 @@ describe("sparse", () => {
     });
   });
 
-  test.skipIf(platform() !== "linux")("simg2img", async () => {
-    const outputPath = `/tmp/${Bun.randomUUIDv7()}.img`;
+  test("simg2img", async () => {
+    const outputPath = `./temp-test-${Date.now()}.img`;
     await simg2img(inputData.name, outputPath);
-    await Bun.$`cmp ${outputPath} ${expectedPath}`;
+
+    // Cross-platform file comparison
+    const expectedBuffer = await Bun.file(expectedPath).arrayBuffer();
+    const actualBuffer = await Bun.file(outputPath).arrayBuffer();
+
+    expect(actualBuffer.byteLength).toBe(expectedBuffer.byteLength);
+    expect(new Uint8Array(actualBuffer)).toEqual(new Uint8Array(expectedBuffer));
+
+    // Cleanup
+    try {
+      const fs = require("fs");
+      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+    } catch { }
   });
 });
